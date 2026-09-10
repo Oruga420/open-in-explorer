@@ -6,3 +6,4 @@ host/open_folder_host.bat
 host/com.oruga.open_folder.json
 *.log
 __pycache__/
+.claude/bitacora.jsonl
