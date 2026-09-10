@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open in Explorer &mdash; Project status</title>
+<!-- This template is deliberately pure ASCII: every dash, dot and arrow is an HTML entity or a
+     CSS escape. Windows PowerShell 5.1 reads a UTF-8 file with no BOM as ANSI, so a naive
+     Get-Content/Set-Content fill turns real em dashes into mojibake. ASCII cannot be mangled.
+     Keep it that way - if you add a symbol, add it as an entity. -->
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1a2233; --muted: #5c6675;
+    --line: #dde1e7; --accent: #2f5fd0; --accent-soft: #e8eefb;
+    --ok: #1d7a3e; --warn: #b26a00; --bad: #b3261e; --crit: #7a1414;
+    --ok-bg: #e5f3ea; --warn-bg: #fdf1dd; --bad-bg: #fbe7e6; --crit-bg: #f3dcdc;
+    --code-bg: #f0f2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --panel: #1d2129; --ink: #e6e9ee; --muted: #9aa3b0;
+      --line: #313743; --accent: #7ea2f0; --accent-soft: #232c40;
+      --ok: #6fce93; --warn: #e6b566; --bad: #ef8f89; --crit: #f0b3b3;
+      --ok-bg: #1c2f23; --warn-bg: #332a1a; --bad-bg: #38201e; --crit-bg: #3d2323;
+      --code-bg: #161a20;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 22px 28px; position: sticky; top: 0; z-index: 10;
+  }
+  header h1 { margin: 0 0 4px; font-size: 21px; }
+  .phase { color: var(--ink); font-size: 14px; margin-top: 2px; }
+  .status {
+    display: inline-block; margin-top: 8px; padding: 3px 12px; border-radius: 99px;
+    font-size: 13px; font-weight: 600;
+    background: var(--warn-bg); color: var(--warn);
+  }
+  .status.green  { background: var(--ok-bg);   color: var(--ok); }
+  .status.yellow { background: var(--warn-bg); color: var(--warn); }
+  .status.red    { background: var(--bad-bg);  color: var(--bad); }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .wrap { display: flex; gap: 26px; max-width: 1200px; margin: 26px auto; padding: 0 24px; align-items: flex-start; }
+  nav {
+    position: sticky; top: 128px; flex: 0 0 220px; font-size: 13.5px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px;
+  }
+  nav a { display: block; color: var(--muted); text-decoration: none; padding: 5px 8px; border-radius: 6px; }
+  nav a.active, nav a:hover { color: var(--accent); background: var(--accent-soft); }
+  nav .tools { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+  nav button {
+    font: inherit; font-size: 12.5px; color: var(--muted); background: none;
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; margin: 2px 2px 0 0; cursor: pointer;
+  }
+  main { flex: 1; min-width: 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .tile b { display: block; font-size: 24px; }
+  .tile span { color: var(--muted); font-size: 12.5px; }
+  details.panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px;
+  }
+  details.panel summary {
+    list-style: none; cursor: pointer; padding: 14px 18px; display: flex; gap: 12px; align-items: baseline;
+  }
+  details.panel summary::-webkit-details-marker { display: none; }
+  summary .num {
+    flex: 0 0 auto; background: var(--accent-soft); color: var(--accent);
+    font-weight: 700; font-size: 12.5px; border-radius: 6px; padding: 2px 8px;
+  }
+  summary .t { font-weight: 650; }
+  summary .preview { color: var(--muted); font-size: 13px; flex: 1; text-align: right; }
+  details[open] summary .preview { display: none; }
+  .body { padding: 4px 20px 18px; border-top: 1px solid var(--line); overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 7px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px; overflow-x: auto; font-size: 13px; line-height: 1.5;
+  }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .badge { display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+  .badge.low  { background: var(--ok-bg);   color: var(--ok); }
+  .badge.med  { background: var(--warn-bg); color: var(--warn); }
+  .badge.high { background: var(--bad-bg);  color: var(--bad); }
+  .badge.crit { background: var(--crit-bg); color: var(--crit); }
+  .rec { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 10px 0; }
+  ul.tight { padding-left: 20px; margin: 8px 0; }
+  ul.tight li { margin: 4px 0; }
+  ul.next { list-style: none; padding-left: 4px; }
+  /* \2192 is a right arrow. CSS escape, not a literal glyph - see the ASCII note above. */
+  ul.next li::before { content: "\2192  "; color: var(--accent); font-weight: 700; }
+  .blocker { border-left: 3px solid var(--bad); background: var(--bad-bg); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 10px 0; }
+  .entry { border-top: 1px solid var(--line); padding: 12px 0 2px; }
+  .entry:first-child { border-top: none; }
+  .entry h4 { margin: 0 0 6px; font-size: 14.5px; }
+  .entry dl { margin: 0; display: grid; grid-template-columns: 84px 1fr; gap: 2px 10px; font-size: 13.5px; }
+  .entry dt { color: var(--muted); }
+  .entry dd { margin: 0; }
+  footer { color: var(--muted); font-size: 12.5px; padding: 8px 4px 40px; border-top: 1px solid var(--line); margin-top: 24px; }
+  @media print {
+    nav, .tools { display: none; }
+    details.panel { border: none; }
+    body { background: #fff; }
+  }
+  @media (max-width: 900px) { .wrap { flex-direction: column; } nav { position: static; width: 100%; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Open in Explorer &mdash; Project status</h1>
+  <!-- PHASE: one line, what stage the project is actually in right now. -->
+  <div class="phase">v1.0.0 built, tested and published &mdash; waiting on the one manual load in Chrome</div>
+  <!-- HEALTH: swap the class to green | yellow | red. The text carries the REASON, e.g.
+       "yellow - deploy blocked on missing credentials". Blocked work is never green. -->
+  <span class="status green">green &mdash; every automated check passes; only the &quot;Load unpacked&quot; click is left</span>
+  <div class="meta">Project status &middot; updated 2026-09-10 12:15 &middot; 1 breakpoints recorded</div>
+</header>
+
+<div class="wrap">
+<nav id="toc">
+  <a href="#s1">1 &middot; Where it stands</a>
+  <a href="#s2">2 &middot; Next</a>
+  <a href="#s3">3 &middot; Done</a>
+  <a href="#s4">4 &middot; Blocked</a>
+  <a href="#s5">5 &middot; Decisions</a>
+  <a href="#s6">6 &middot; Breakpoint log</a>
+  <div class="tools">
+    <button onclick="setAll(true)">Expand all</button>
+    <button onclick="setAll(false)">Collapse all</button>
+    <button onclick="window.print()">Print</button>
+  </div>
+</nav>
+
+<main>
+  <!-- Counts. Keep them true to the sections below - a tile that disagrees with its section
+       destroys trust in the whole page. -->
+  <div class="tiles">
+    <div class="tile"><b>6</b><span>done &amp; verified</span></div>
+    <div class="tile"><b>4</b><span>next actions</span></div>
+    <div class="tile"><b>1</b><span>blockers</span></div>
+    <div class="tile"><b>1</b><span>breakpoints</span></div>
+  </div>
+
+  <!-- RULE: every summary carries a one-line PREVIEW stating that section's CONCLUSION,
+       not a description of its contents.
+       RULE: sections 1, 2 and 4 ship open (where it stands / next / blocked). Rest collapsed.
+       RULE: delete a panel entirely if it is genuinely empty. Never fill it with "none". -->
+
+  <details class="panel" id="s1" open>
+    <summary><span class="num">1</span><span class="t">Where it stands</span><span class="preview">Built and published; the only step left is loading it in Chrome.</span></summary>
+    <div class="body">
+      <!-- 3-6 sentences. What works, what does not, what a fresh session must know before
+           touching anything. Link the /ultraplan page here if one exists. -->
+      <p>The extension and its native helper are complete and pushed to <a href="https://github.com/Oruga420/open-in-explorer">github.com/Oruga420/open-in-explorer</a> (public). Pressing the toolbar button (or <b>Alt+Shift+E</b>) reads the current tab's URL, pulls a Windows path out of it, and hands that path to a small Python native messaging host that runs <code>explorer.exe</code> &mdash; with <code>/select</code> when the path is a file, so the file shows up highlighted inside its folder. The host is already installed here: <code>host\install.ps1</code> wrote the launcher and host manifest and registered it for Chrome, Edge and Brave, and the extension id is pinned by the manifest <code>key</code> (<code>dahclepccpmepheckhenjdkfclfhdjib</code>) so the allow-list matches on any machine. What has not happened yet: the extension is not loaded in Chuck's own Chrome profile &mdash; <code>chrome://extensions</code> &rarr; Developer mode &rarr; Load unpacked &rarr; <code>C:\Users\user\Desktop\oruga projects\open-in-explorer\extension</code>, then restart Chrome.</p>
+    </div>
+  </details>
+
+  <details class="panel" id="s2" open>
+    <summary><span class="num">2</span><span class="t">Next</span><span class="preview">Load unpacked, restart Chrome, press Alt+Shift+E on a file:// URL.</span></summary>
+    <div class="body">
+      <!-- one <li> per action, in the order they should happen -->
+      <ul class="next">
+        <li>Load the <code>extension</code> folder unpacked at <code>chrome://extensions</code> (Developer mode &rarr; Load unpacked), then restart Chrome and pin the button.</li>
+        <li>Smoke test: open <code>file:///C:/Users/user/Desktop/</code>, press <b>Alt+Shift+E</b>, confirm a real Explorer window appears.</li>
+        <li>Try the other shapes: a <code>?path=</code> URL and a <code>\\server\share</code> path.</li>
+        <li>If the badge shows <code>!</code> (host not found), re-run <code>host\install.ps1</code> and restart Chrome completely.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="panel" id="s3">
+    <summary><span class="num">3</span><span class="t">Done</span><span class="preview">Six things shipped, each with the check that proves it.</span></summary>
+    <div class="body">
+      <!-- Newest first. Every row names how it was verified: a command, a test, an
+           observation. "not verified" is an acceptable value; a blank cell is not. -->
+      <table>
+        <tr><th>What shipped</th><th>Verified by</th><th>When</th></tr>
+        <tr><td>URL &rarr; path extraction: <code>file://</code>, query/hash params, UNC shares, raw pasted paths</td><td><code>node tests/extract.test.mjs</code> &mdash; 11/11 passing</td><td>2026-09-10</td></tr>
+        <tr><td>Python native messaging host (<code>ping</code> + <code>open</code>, stdlib only)</td><td>framed protocol driven from Python: real file answered <code>{&quot;ok&quot;:true,&quot;mode&quot;:&quot;select&quot;}</code> and Explorer opened with it selected; bogus path answered <code>Path not found</code></td><td>2026-09-10</td></tr>
+        <tr><td>Launcher + registration via <code>host\install.ps1</code></td><td>ran it; the generated <code>.bat</code> answers the protocol, and the three <code>HKCU\...\NativeMessagingHosts</code> keys exist</td><td>2026-09-10</td></tr>
+        <tr><td>Folder icons generated with the stdlib (no image library)</td><td>rendered at 16/48/128 and eyeballed</td><td>2026-09-10</td></tr>
+        <tr><td>Public repo <a href="https://github.com/Oruga420/open-in-explorer">Oruga420/open-in-explorer</a></td><td><code>gh repo create --push</code>; <code>main</code> at <code>ea5d70c</code></td><td>2026-09-10</td></tr>
+        <tr><td>Registry + generated files recorded in <code>.claude\bitacora.jsonl</code></td><td>entry written and read back</td><td>2026-09-10</td></tr>
+      </table>
+    </div>
+  </details>
+
+  <details class="panel" id="s4" open>
+    <summary><span class="num">4</span><span class="t">Blocked</span><span class="preview">One parked blocker: Chrome 152 dropped --load-extension, so the browser click stays manual.</span></summary>
+    <div class="body">
+      <!-- one .blocker div per blocker: what is stuck, and who or what it waits on -->
+      <div class="blocker"><b>Automated end-to-end test inside a throwaway Chrome</b><br>Chrome 152 no longer honours <code>--load-extension</code> &mdash; tried it plain, with <code>--enable-unsafe-extension-debugging</code> and with <code>--disable-features=DisableLoadExtensionCommandLineSwitch</code>; the extension never shows up as a CDP target. Parked on purpose: the browser half runs on the same V8 the tests use, and loading unpacked is a one-time click.</div>
+    </div>
+  </details>
+
+  <details class="panel" id="s5">
+    <summary><span class="num">5</span><span class="t">Decisions</span><span class="preview">Explorer needs a native host; the extension id is pinned so the allow-list holds.</span></summary>
+    <div class="body">
+      <table>
+        <tr><th>Date</th><th>Decision</th><th>Why it beat the alternative</th></tr>
+        <tr><td>2026-09-10</td><td>Native messaging host instead of just opening <code>file:///</code> in a tab</td><td>A <code>file://</code> tab is Chrome's own directory listing, not Explorer; the goal was a real Explorer window with the file selected.</td></tr>
+        <tr><td>2026-09-10</td><td>Pin the extension id with a manifest <code>key</code></td><td>The host's <code>allowed_origins</code> has to name the id; without a fixed key every unpacked load gets a new random id and the installer would need re-running.</td></tr>
+        <tr><td>2026-09-10</td><td><code>explorer.exe /select,&lt;file&gt;</code> for file paths</td><td>Highlights the file inside its folder without launching it &mdash; the host never executes what it is handed.</td></tr>
+        <tr><td>2026-09-10</td><td>Python + <code>.bat</code> launcher rather than a compiled host</td><td>Python is already on this machine and the host stays readable in a public repo; the console flash is avoided by pointing at <code>pythonw.exe</code>.</td></tr>
+        <tr><td>2026-09-10</td><td>Public GitHub repo</td><td>Explicit operator instruction, overriding the usual private-personal-repo default.</td></tr>
+      </table>
+    </div>
+  </details>
+
+  <details class="panel" id="s6">
+    <summary><span class="num">6</span><span class="t">Breakpoint log</span><span class="preview">One breakpoint: v1.0.0 shipped to a public repo.</span></summary>
+    <div class="body">
+      <!-- Append-only, newest first. One .entry per breakpoint. Never edit a past entry.
+           <div class="entry">
+             <h4>2026-08-06 14:20 - title</h4>
+             <dl><dt>What</dt><dd>...</dd>
+                 <dt>Files</dt><dd><code>...</code></dd>
+                 <dt>Verified</dt><dd>...</dd>
+                 <dt>Next</dt><dd>...</dd></dl>
+           </div> -->
+      <div class="entry"><h4>2026-09-10 12:15 &mdash; v1.0.0 shipped to a public repo</h4><dl><dt>What</dt><dd>extension + native host + installer + tests + README written, host installed on this laptop, repo created and pushed</dd><dt>Files</dt><dd><code>extension/</code> (manifest, background.js, icons), <code>host/</code> (open_folder_host.py, install.ps1, uninstall.ps1), <code>tests/extract.test.mjs</code>, <code>tools/make_icons.py</code>, README.md, LICENSE</dd><dt>Verified</dt><dd><code>node tests/extract.test.mjs</code> 11/11; native host exercised directly and through the generated <code>.bat</code>; <code>gh repo create</code> pushed <code>main</code> (af8bab9, ea5d70c)</dd><dt>Next</dt><dd>load unpacked in Chrome and smoke test the button</dd></dl></div>
+    </div>
+  </details>
+
+  <footer>
+    Living snapshot &mdash; the sections above describe the present and are rewritten on every
+    breakpoint; the breakpoint log is append-only history. Source of truth:
+    <code>C:\Users\user\Desktop\oruga projects\open-in-explorer\PROJECT_STATUS.md</code>. Anything in <b>Done</b> without a verification is labeled
+    "not verified" on purpose.
+  </footer>
+</main>
+</div>
+
+<script>
+  function setAll(open) {
+    document.querySelectorAll("details.panel").forEach(d => d.open = open);
+  }
+  window.addEventListener("beforeprint", () => setAll(true));
+  const links = document.querySelectorAll("#toc a");
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.toggle("active", l.getAttribute("href") === "#" + e.target.id));
+      }
+    });
+  }, { rootMargin: "-40% 0px -55% 0px" });
+  document.querySelectorAll("details.panel").forEach(d => obs.observe(d));
+</script>
+</body>
+</html>
