@@ -1,0 +1,8 @@
+key.pem
+pub.der
+pubkey_b64.txt
+extension_id.txt
+host/open_folder_host.bat
+host/com.oruga.open_folder.json
+*.log
+__pycache__/

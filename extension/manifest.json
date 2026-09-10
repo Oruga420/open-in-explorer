@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Open in Explorer",
+  "version": "1.0.0",
+  "description": "Click the toolbar button to open the folder whose path is in the current URL, with the file selected.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmTwRFVsPPvrjZ2AfNvWC/1qdwpesAbA6QQYeFxWtKHdlokREGsUzRK5lBHSFSZxZX71CKsfVpi7QgqCwElz7tppvJnRidA/4j9oOGidtA+8S2vpYcSLLliNeT3gN767ahYIXIUwnDCtLJkoZPY+e6OExpJl0C8gdKVdnJKcG9b2soLzzE7TjmUABLl2H/zresEQW5EAwYJ4WZNgBLevjcfrD8Mooj2RYNwNbr/jQrEAY/8BcGRpWRlNSFwfIGEm6LdKy3PjnccCzCWqE+WLMl4VlNfa2NbQRKVARnNRzw2RJpxSZ9nBxUH/dOCEvDtLhKPsrL2ErjrkOXj0zJyy10QIDAQAB",
+  "permissions": ["nativeMessaging", "tabs", "notifications"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "Open this path in Explorer (Alt+Shift+E)",
+    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
+  "commands": {
+    "open-in-explorer": {
+      "suggested_key": { "default": "Alt+Shift+E" },
+      "description": "Open the path in the current URL in Explorer"
+    }
+  },
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+}
